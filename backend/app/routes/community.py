@@ -18,6 +18,7 @@ from app.schemas.community import (
     FollowerStatsResponse,
 )
 from app.dependencies import get_current_user, get_optional_current_user
+from app.cache import cache, TTL_COMMUNITY_POSTS
 
 router = APIRouter(prefix="/community", tags=["community"])
 
@@ -36,6 +37,12 @@ def list_posts(
     db: Session = Depends(get_db),
 ):
     """Lists community feed posts with engagement statistics and current user status."""
+    is_unfiltered_posts = (not post_type or post_type.lower() in ('all', '')) and skip == 0
+    posts_cache_key = "community:posts:all"
+    if is_unfiltered_posts:
+        cached_posts = cache.get(posts_cache_key)
+        if cached_posts is not None:
+            return cached_posts
     query = db.query(CommunityPost)
     if post_type and post_type.lower() != "all":
         clean = post_type.lower().strip().replace(" ", "_")
@@ -132,6 +139,8 @@ def list_posts(
             comments=comments_data,
         )
         results.append(resp)
+    if is_unfiltered_posts:
+        cache.set(posts_cache_key, results, TTL_COMMUNITY_POSTS)
     return results
 
 
@@ -190,6 +199,7 @@ def create_post(
 
     creator_prof_id = _get_creator_profile_id(current_user.id, db)
 
+    cache.delete("community:posts:all")
     return PostResponse(
         id=post.id,
         author_id=post.author_id,

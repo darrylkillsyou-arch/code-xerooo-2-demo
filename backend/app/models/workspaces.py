@@ -9,13 +9,13 @@ class Workspace(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     brief_id = Column(Integer, ForeignKey("briefs.id", ondelete="SET NULL"), nullable=True)
-    brand_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    creator_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    brand_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    creator_user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(255), nullable=False)
-    status = Column(String(50), default="discovery", nullable=False)
+    status = Column(String(50), default="discovery", nullable=False, index=True)
     # discovery, brief_approved, production, review, delivered, completed
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    completed_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True, index=True)
 
     # Relationships
     brief = relationship("Brief", back_populates="workspaces")
@@ -58,13 +58,13 @@ class WorkspaceMilestone(Base):
     __tablename__ = "workspace_milestones"
 
     id = Column(Integer, primary_key=True, index=True)
-    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    workspace_id = Column(Integer, ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     amount = Column(Float, default=0.0, nullable=False)
-    status = Column(String(50), default="pending", nullable=False)  # pending, approved, in_review, released
+    status = Column(String(50), default="pending", nullable=False, index=True)  # pending, approved, in_review, released
     estimated_date = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True, index=True)
 
     workspace = relationship("Workspace", back_populates="milestones")
     revisions = relationship("RevisionRequest", back_populates="milestone", cascade="all, delete-orphan")

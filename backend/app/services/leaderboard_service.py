@@ -32,6 +32,7 @@ from app.schemas.leaderboard import (
     MonthlyLeaderboardResponse,
 )
 from app.schemas.creators import CreatorProfileResponse
+from app.cache import cache, TTL_LEADERBOARD
 
 MONTH_NAME_MAP = {
     "2026-08": "August 2026",
@@ -349,6 +350,11 @@ def get_monthly_leaderboard(
     if month not in MONTH_NAME_MAP:
         month = "2026-10"
 
+    cache_key = f"leaderboard:{month}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     available_months = ["2026-08", "2026-09", "2026-10"]
 
     # 1. Compute current month's ranked creators (also returns raw lists for reuse)
@@ -561,7 +567,7 @@ def get_monthly_leaderboard(
         source="real_database",
     )
 
-    return MonthlyLeaderboardResponse(
+    resp = MonthlyLeaderboardResponse(
         selected_month=month,
         month_name=MONTH_NAME_MAP[month],
         available_months=available_months,
@@ -571,3 +577,5 @@ def get_monthly_leaderboard(
         category_champions=category_champions,
         total_qualifying_creators=len(current_ranked),
     )
+    cache.set(cache_key, resp, TTL_LEADERBOARD)
+    return resp

@@ -2,6 +2,7 @@ import type { Creator, Brief, CommunityPost, PostCommentItem, Workspace, User, P
 
 import { INITIAL_CREATORS, INITIAL_WORKSPACES } from './mockData';
 import { getCreatorAvatar, getCreatorHeroImage } from './creatorImages';
+import { clientCache, TTL } from './clientCache';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
@@ -403,6 +404,20 @@ export const api = {
     list: async (params?: { category?: string; query?: string; specialization?: string; style?: string; tools?: string; limit?: number; skip?: number }): Promise<Creator[]> => {
       try {
         const queryObj: Record<string, string> = {};
+        const isFiltered = !!(
+          (params?.category && params.category !== 'All' && params.category !== 'All Specialties') ||
+          params?.query ||
+          (params?.specialization && params.specialization !== 'All Specializations') ||
+          (params?.style && params.style !== 'All Styles') ||
+          (params?.tools && params.tools !== 'All Tools')
+        );
+
+        // Return from cache for the common unfiltered case
+        if (!isFiltered) {
+          const cached = clientCache.get<Creator[]>('creators:list:all');
+          if (cached) return cached;
+        }
+
         if (params?.category && params.category !== 'All' && params.category !== 'All Specialties') {
           queryObj.category = params.category;
         }
@@ -428,7 +443,12 @@ export const api = {
         }
         const qs = new URLSearchParams(queryObj).toString();
         const data = await request<any[]>(`/creators${qs ? `?${qs}` : ''}`);
-        return data.map(normalizeCreator);
+        const result = data.map(normalizeCreator);
+        if (!isFiltered) {
+          clientCache.set('creators:list:all', result, TTL.CREATORS);
+        }
+        return result;
+
       } catch {
         let result = creatorsStore;
         if (params?.category && params.category !== 'All' && params.category !== 'All Specialties') {
@@ -469,8 +489,13 @@ export const api = {
     },
     getById: async (id: string): Promise<Creator> => {
       try {
+        const cacheKey = `creator:detail:${id}`;
+        const cached = clientCache.get<Creator>(cacheKey);
+        if (cached) return cached;
         const data = await request<any>(`/creators/${id}`);
-        return normalizeCreator(data);
+        const result = normalizeCreator(data);
+        clientCache.set(cacheKey, result, TTL.CREATOR_DETAIL);
+        return result;
       } catch {
         const found = creatorsStore.find(c => c.id === id);
         if (!found) return INITIAL_CREATORS[0];
@@ -637,9 +662,18 @@ export const api = {
 
   community: {
     getPosts: async (postType?: string): Promise<CommunityPost[]> => {
+      const isUnfiltered = !postType || postType === 'All';
+      if (isUnfiltered) {
+        const cached = clientCache.get<CommunityPost[]>('community:posts:all');
+        if (cached) return cached;
+      }
       const qs = postType && postType !== 'All' ? `?post_type=${encodeURIComponent(postType)}` : '';
       const data = await request<any[]>(`/community/posts${qs}`);
-      return data.map(normalizeCommunityPost);
+      const result = data.map(normalizeCommunityPost);
+      if (isUnfiltered) {
+        clientCache.set('community:posts:all', result, TTL.COMMUNITY);
+      }
+      return result;
     },
     createPost: async (data: {
       title?: string;
@@ -675,6 +709,7 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(payload),
       });
+      clientCache.delete('community:posts:all'); // invalidate feed cache
       return normalizeCommunityPost(res);
     },
     likePost: async (id: string): Promise<{ success: boolean; likes_count: number; liked: boolean }> => {
@@ -878,7 +913,12 @@ export const api = {
         q.append('month', params.month);
       }
       const qs = q.toString() ? `?${q.toString()}` : '';
-      return request<any>(`/leaderboard${qs}`);
+      const cacheKey = `leaderboard:${params?.month || 'current'}`;
+      const cached = clientCache.get<any>(cacheKey);
+      if (cached) return cached;
+      const result = await request<any>(`/leaderboard${qs}`);
+      clientCache.set(cacheKey, result, TTL.LEADERBOARD);
+      return result;
     },
     getSummary: async (month?: string) => {
       const qs = month ? `?month=${encodeURIComponent(month)}` : '';
@@ -946,3 +986,17 @@ export const api = {
     },
   },
 };
+
+/**
+ * Prefetch public read-heavy data in the background to warm the client cache.
+ * Call this after login or on app mount so subsequent page navigations feel instant.
+ * Errors are silently ignored — this is best-effort only.
+ */
+export function prefetchPublicData(): void {
+  // Fire-and-forget — don't block anything
+  Promise.all([
+    api.creators.list().catch(() => null),
+    api.community.getPosts().catch(() => null),
+    api.leaderboard.get({ month: '2026-10' }).catch(() => null),
+  ]).catch(() => null);
+}

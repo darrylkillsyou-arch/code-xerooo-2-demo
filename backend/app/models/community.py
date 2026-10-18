@@ -8,8 +8,8 @@ class CommunityPost(Base):
     __tablename__ = "community_posts"
 
     id = Column(Integer, primary_key=True, index=True)
-    author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    post_type = Column(String(100), default="showcase", nullable=False)
+    author_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    post_type = Column(String(100), default="showcase", nullable=False, index=True)
     # showcase, achievement, service, collaboration, open_brief, creator_request
     title = Column(String(255), nullable=False)
     content = Column(Text, nullable=False)
@@ -17,7 +17,7 @@ class CommunityPost(Base):
     tools_tags = Column(JSON, default=list, nullable=False)  # ["Midjourney v6", "Kling AI", "Premiere"]
     base_likes = Column(Integer, default=0, nullable=False)
     base_comments = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     # Relationships
     author = relationship("User", back_populates="posts")

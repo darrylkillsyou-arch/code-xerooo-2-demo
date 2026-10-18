@@ -87,6 +87,40 @@ class CreatorProfileUpdate(BaseModel):
     style_tags: Optional[List[str]] = None
 
 
+class CreatorCardResponse(BaseModel):
+    """Lightweight schema for creator list/discovery cards.
+    Excludes portfolio_items to reduce payload from 160KB -> ~15KB.
+    """
+    id: int
+    user_id: int
+    display_name: str
+    tagline: Optional[str] = None
+    specialization: str
+    core_category: Optional[str] = None
+    sub_specializations: List[str] = []
+    style_tags: List[str] = []
+    skills: List[str] = []
+    ai_tools: List[str] = []
+    starting_rate: float = 500.0
+    delivery_days: int = 7
+    commercial_rights: bool = True
+    availability_status: str = "available"
+    rating: float = 5.0
+    total_briefs: int = 0
+    sla_score: float = 98.0
+    on_time_percentage: float = 100.0
+    is_verified: bool = False
+    location: Optional[str] = None
+    created_at: datetime
+    # Flattened from User — only what cards need
+    avatar_url: Optional[str] = None
+    user_full_name: Optional[str] = None
+    # One hero image from first portfolio item (if available)
+    hero_image_url: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class CreatorProfileResponse(CreatorProfileBase):
     id: int
     user_id: int

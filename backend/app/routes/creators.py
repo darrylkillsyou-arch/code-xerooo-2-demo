@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.database import get_db
 from app.models.users import User
 from app.models.creators import CreatorProfile, PortfolioItem, CreatorAchievement, Verification
+from app.cache import cache, TTL_CREATORS_LIST, TTL_CREATOR_DETAIL
 from app.schemas.creators import (
     CreatorProfileResponse,
+    CreatorCardResponse,
     CreatorDetailResponse,
     CreatorProfileUpdate,
     PortfolioItemCreate,
@@ -19,7 +21,7 @@ from app.dependencies import get_current_user, get_current_creator_user
 router = APIRouter(prefix="/creators", tags=["creators"])
 
 
-@router.get("", response_model=List[CreatorProfileResponse])
+@router.get("", response_model=List[CreatorCardResponse])
 def list_creators(
     skip: int = 0,
     limit: int = 200,
@@ -34,6 +36,14 @@ def list_creators(
     db: Session = Depends(get_db),
 ):
     """Lists creator profiles with rich taxonomy, sub-specialization, style, and search filtering."""
+    # Cache only unfiltered list (the most common Discover page load)
+    is_unfiltered = not any([query, category and category.lower() not in ('all', 'all specialties'),
+                             specialization, style, tools, min_rate, max_rate])
+    cache_key = "creators:list:all"
+    if is_unfiltered:
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
     q = (
         db.query(CreatorProfile)
         .join(User)
@@ -263,16 +273,67 @@ def list_creators(
         else:
             creators = []
 
-    return creators[skip : skip + limit]
+
+    result = creators[skip : skip + limit]
+    # Build lightweight card responses to reduce payload size
+    card_responses = []
+    for c in result:
+        hero = c.portfolio_items[0].image_url if c.portfolio_items else None
+        card = CreatorCardResponse(
+            id=c.id,
+            user_id=c.user_id,
+            display_name=c.display_name,
+            tagline=c.tagline,
+            specialization=c.specialization,
+            core_category=c.core_category,
+            sub_specializations=c.sub_specializations or [],
+            style_tags=c.style_tags or [],
+            skills=c.skills or [],
+            ai_tools=c.ai_tools or [],
+            starting_rate=c.starting_rate,
+            delivery_days=c.delivery_days,
+            commercial_rights=c.commercial_rights,
+            availability_status=c.availability_status,
+            rating=c.rating,
+            total_briefs=c.total_briefs,
+            sla_score=c.sla_score,
+            on_time_percentage=c.on_time_percentage,
+            is_verified=c.is_verified,
+            location=c.location,
+            created_at=c.created_at,
+            avatar_url=c.user.avatar_url if c.user else None,
+            user_full_name=c.user.full_name if c.user else None,
+            hero_image_url=hero,
+        )
+        card_responses.append(card)
+    if is_unfiltered:
+        cache.set(cache_key, card_responses, TTL_CREATORS_LIST)
+    return card_responses
 
 
 @router.get("/{creator_id}", response_model=CreatorDetailResponse)
 def get_creator_detail(creator_id: int, db: Session = Depends(get_db)):
     """Retrieves full creator profile details including portfolio, achievements, and verifications."""
-    creator = db.query(CreatorProfile).filter(CreatorProfile.id == creator_id).first()
+    cache_key = f"creator:detail:{creator_id}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    creator = (
+        db.query(CreatorProfile)
+        .options(
+            joinedload(CreatorProfile.user),
+            selectinload(CreatorProfile.portfolio_items),
+            selectinload(CreatorProfile.achievements),
+            selectinload(CreatorProfile.verifications),
+        )
+        .filter(CreatorProfile.id == creator_id)
+        .first()
+    )
     if not creator:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Creator not found")
-    return creator
+    result = CreatorDetailResponse.model_validate(creator)
+    cache.set(cache_key, result, TTL_CREATOR_DETAIL)
+    return result
 
 
 @router.get("/{creator_id}/portfolio", response_model=List[PortfolioItemResponse])

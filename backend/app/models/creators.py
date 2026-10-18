@@ -17,14 +17,14 @@ class CreatorProfile(Base):
     starting_rate = Column(Float, default=500.0, nullable=False)
     delivery_days = Column(Integer, default=7, nullable=False)
     commercial_rights = Column(Boolean, default=True, nullable=False)
-    availability_status = Column(String(50), default="available", nullable=False)  # available, busy, booked
-    rating = Column(Float, default=5.0, nullable=False)
+    availability_status = Column(String(50), default="available", nullable=False, index=True)  # available, busy, booked
+    rating = Column(Float, default=5.0, nullable=False, index=True)
     total_briefs = Column(Integer, default=0, nullable=False)
     sla_score = Column(Float, default=98.0, nullable=False)  # percentage
     on_time_percentage = Column(Float, default=100.0, nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
     location = Column(String(255), nullable=True)
-    core_category = Column(String(100), nullable=True)  # e.g., "AI Video", "AI Images", "3D & CGI"
+    core_category = Column(String(100), nullable=True, index=True)  # e.g., "AI Video", "AI Images", "3D & CGI"
     sub_specializations = Column(JSON, default=list, nullable=True)  # e.g., ["Cinematic Video", "Automotive"]
     style_tags = Column(JSON, default=list, nullable=True)  # e.g., ["Cinematic", "Luxury", "Photorealistic"]
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -41,7 +41,7 @@ class PortfolioItem(Base):
     __tablename__ = "portfolio_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    creator_id = Column(Integer, ForeignKey("creator_profiles.id", ondelete="CASCADE"), nullable=False)
+    creator_id = Column(Integer, ForeignKey("creator_profiles.id", ondelete="CASCADE"), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
     image_url = Column(String(500), nullable=False)

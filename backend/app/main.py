@@ -5,6 +5,7 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -54,9 +55,12 @@ async def lifespan(app: FastAPI):
                     shutil.copy2(candidate, target_path)
                     break
 
-    logger.info("Initializing database tables...")
-    Base.metadata.create_all(bind=engine)
-    logger.info("Database initialized successfully.")
+    if settings.DATABASE_URL.startswith("sqlite:///"):
+        logger.info("Initializing database tables (SQLite dev mode)...")
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database initialized successfully.")
+    else:
+        logger.info("PostgreSQL detected — skipping create_all (tables managed by migrations).")
     yield
 
 
@@ -81,6 +85,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Compress responses larger than 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 # Include API Routers
 app.include_router(auth_router, prefix=settings.API_V1_STR)
