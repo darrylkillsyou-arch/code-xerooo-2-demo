@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from app.database import get_db
 from app.models.users import User
 from app.models.creators import CreatorProfile
@@ -70,7 +70,17 @@ def list_posts(
         else:
             query = query.filter(CommunityPost.post_type.ilike(f"%{clean}%"))
 
-    posts = query.order_by(CommunityPost.created_at.desc()).offset(skip).limit(limit).all()
+    posts = (
+        query.options(
+            joinedload(CommunityPost.author),
+            selectinload(CommunityPost.likes),
+            selectinload(CommunityPost.comments).joinedload(PostComment.user),
+        )
+        .order_by(CommunityPost.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
     my_likes = set()
     my_saved = set()

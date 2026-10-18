@@ -7,7 +7,7 @@ from typing import List, Optional
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse as FastAPIFileResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from app.database import get_db
 from app.models.users import User
 from app.models.notifications import Notification
@@ -45,13 +45,25 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 @router.get("", response_model=List[WorkspaceResponse])
 def list_my_workspaces(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Lists all active collaboration workspaces the current user participates in."""
-    workspaces = db.query(Workspace).filter(
-        (Workspace.brand_user_id == current_user.id) |
-        (Workspace.creator_user_id == current_user.id) |
-        (Workspace.id.in_(
-            db.query(WorkspaceMember.workspace_id).filter(WorkspaceMember.user_id == current_user.id)
-        ))
-    ).order_by(Workspace.created_at.desc()).all()
+    workspaces = (
+        db.query(Workspace)
+        .options(
+            joinedload(Workspace.brand_user),
+            joinedload(Workspace.creator_user),
+            joinedload(Workspace.brief),
+            joinedload(Workspace.review),
+            selectinload(Workspace.milestones).selectinload(WorkspaceMilestone.revisions),
+        )
+        .filter(
+            (Workspace.brand_user_id == current_user.id) |
+            (Workspace.creator_user_id == current_user.id) |
+            (Workspace.id.in_(
+                db.query(WorkspaceMember.workspace_id).filter(WorkspaceMember.user_id == current_user.id)
+            ))
+        )
+        .order_by(Workspace.created_at.desc())
+        .all()
+    )
     return workspaces
 
 

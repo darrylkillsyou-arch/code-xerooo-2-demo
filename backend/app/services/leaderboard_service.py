@@ -16,7 +16,7 @@ so that running test suites never alters marketplace leaderboard metrics.
 from datetime import datetime
 from typing import List, Optional, Dict, Tuple
 from collections import defaultdict
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func
 
 from app.models.creators import CreatorProfile
@@ -218,6 +218,10 @@ def _compute_month_creator_scores(
     creators = (
         db.query(CreatorProfile)
         .join(User)
+        .options(
+            joinedload(CreatorProfile.user),
+            selectinload(CreatorProfile.portfolio_items),
+        )
         .filter(
             User.is_active == True,
             CreatorProfile.user_id.in_(qualifying_uids),

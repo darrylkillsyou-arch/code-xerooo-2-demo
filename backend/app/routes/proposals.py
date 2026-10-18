@@ -194,7 +194,48 @@ def get_my_proposals(
             (Proposal.creator_user_id == current_user.id)
         )
     proposals = query.order_by(Proposal.created_at.desc()).all()
-    return [_serialize_proposal(p, db) for p in proposals]
+    if not proposals:
+        return []
+
+    # Batch fetch related users and creator profiles to avoid N+1 queries
+    brand_uids = {p.brand_user_id for p in proposals}
+    creator_uids = {p.creator_user_id for p in proposals}
+    all_uids = brand_uids | creator_uids
+
+    users_map = {u.id: u for u in db.query(User).filter(User.id.in_(all_uids)).all()}
+    profiles_map = {
+        cp.user_id: cp
+        for cp in db.query(CreatorProfile).filter(CreatorProfile.user_id.in_(creator_uids)).all()
+    }
+
+    results = []
+    for p in proposals:
+        brand = users_map.get(p.brand_user_id)
+        creator = users_map.get(p.creator_user_id)
+        creator_prof = profiles_map.get(p.creator_user_id)
+
+        recruiter_name = brand.full_name if brand else "Recruiter"
+        creator_name = (creator_prof.display_name if creator_prof else None) or (creator.full_name if creator else "Creator")
+        creator_avatar = creator.avatar_url if creator else None
+
+        results.append(
+            ProposalResponse(
+                id=p.id,
+                brand_user_id=p.brand_user_id,
+                creator_user_id=p.creator_user_id,
+                workspace_id=p.workspace_id,
+                project_title=p.project_title,
+                project_requirement=p.project_requirement,
+                budget_in_rupees=p.budget_in_rupees,
+                deadline=p.deadline,
+                status=p.status,
+                created_at=p.created_at,
+                recruiter_name=recruiter_name,
+                creator_name=creator_name,
+                creator_avatar=creator_avatar,
+            )
+        )
+    return results
 
 
 @router.post("/{proposal_id}/accept", response_model=ProposalResponse)

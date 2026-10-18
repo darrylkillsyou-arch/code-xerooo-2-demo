@@ -3,7 +3,7 @@
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import cast, String
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload, selectinload
 from app.database import get_db
 from app.models.users import User
 from app.models.creators import CreatorProfile, PortfolioItem, CreatorAchievement, Verification
@@ -34,7 +34,15 @@ def list_creators(
     db: Session = Depends(get_db),
 ):
     """Lists creator profiles with rich taxonomy, sub-specialization, style, and search filtering."""
-    q = db.query(CreatorProfile).join(User).filter(User.is_active == True)
+    q = (
+        db.query(CreatorProfile)
+        .join(User)
+        .options(
+            joinedload(CreatorProfile.user),
+            selectinload(CreatorProfile.portfolio_items),
+        )
+        .filter(User.is_active == True)
+    )
 
     if availability:
         q = q.filter(CreatorProfile.availability_status == availability)

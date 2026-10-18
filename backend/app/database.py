@@ -19,11 +19,12 @@ engine_kwargs = {
 if db_url.startswith("sqlite"):
     engine_kwargs["connect_args"] = {"check_same_thread": False}
 else:
-    # PostgreSQL / Supabase production configuration
+    # PostgreSQL / Neon serverless configuration
+    # Using NullPool prevents leaking persistent connection pools across stateless serverless invocations.
+    # Neon's PgBouncer pooler efficiently handles connection pooling at the infrastructure layer.
+    from sqlalchemy.pool import NullPool
+    engine_kwargs["poolclass"] = NullPool
     engine_kwargs["pool_pre_ping"] = True
-    engine_kwargs["pool_size"] = 10
-    engine_kwargs["max_overflow"] = 20
-    engine_kwargs["pool_recycle"] = 300
 
 engine = create_engine(db_url, **engine_kwargs)
 
