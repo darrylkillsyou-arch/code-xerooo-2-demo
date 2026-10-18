@@ -4,6 +4,12 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+from pathlib import Path
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+ENV_FILE = BACKEND_DIR / ".env"
+
+
 class Settings(BaseSettings):
     PROJECT_NAME: str = "Maccall AI Creator Marketplace"
     VERSION: str = "1.0.0"
@@ -27,13 +33,18 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "https://ollama.com"
 
     
-    # CORS Origins
+    # CORS Origins (allow common local dev origins by default)
     CORS_ORIGINS: Union[List[str], str] = [
         "http://localhost:5173",
         "http://127.0.0.1:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5174",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-        "http://localhost:8000"
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:8001",
+        "http://127.0.0.1:8001"
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")
@@ -46,7 +57,7 @@ class Settings(BaseSettings):
         return v
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=[str(ENV_FILE), ".env"],
         env_file_encoding="utf-8",
         case_sensitive=True,
         extra="ignore"
