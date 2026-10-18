@@ -38,6 +38,7 @@ from app.schemas.workspaces import (
 )
 from app.dependencies import get_current_user
 from app.services.encryption import encrypt_message, decrypt_message
+from app.cache import cache, TTL_USER_DATA
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 
@@ -45,6 +46,11 @@ router = APIRouter(prefix="/workspaces", tags=["workspaces"])
 @router.get("", response_model=List[WorkspaceResponse])
 def list_my_workspaces(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Lists all active collaboration workspaces the current user participates in."""
+    cache_key = f"user:{current_user.id}:workspaces"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     workspaces = (
         db.query(Workspace)
         .options(
@@ -64,7 +70,10 @@ def list_my_workspaces(current_user: User = Depends(get_current_user), db: Sessi
         .order_by(Workspace.created_at.desc())
         .all()
     )
-    return workspaces
+    # Serialize to Pydantic models so cached items can be safely returned without active DB session
+    serialized = [WorkspaceResponse.model_validate(w) for w in workspaces]
+    cache.set(cache_key, serialized, TTL_USER_DATA)
+    return serialized
 
 
 @router.post("", response_model=WorkspaceResponse, status_code=status.HTTP_201_CREATED)
@@ -138,6 +147,10 @@ def create_workspace(
     db.add(welcome_msg)
     db.commit()
     db.refresh(workspace)
+
+    cache.clear_prefix(f"user:{workspace.brand_user_id}:workspaces")
+    cache.clear_prefix(f"user:{workspace.creator_user_id}:workspaces")
+
     return workspace
 
 
@@ -277,6 +290,10 @@ def update_milestone(
 
     db.commit()
     db.refresh(milestone)
+
+    cache.clear_prefix(f"user:{workspace.brand_user_id}:workspaces")
+    cache.clear_prefix(f"user:{workspace.creator_user_id}:workspaces")
+
     return milestone
 
 
@@ -653,6 +670,11 @@ def complete_workspace(
 
     db.commit()
     db.refresh(workspace)
+
+    cache.clear_prefix(f"user:{workspace.brand_user_id}:workspaces")
+    cache.clear_prefix(f"user:{workspace.creator_user_id}:workspaces")
+    cache.clear_prefix("leaderboard:")
+
     return get_workspace_detail(workspace_id=workspace.id, current_user=current_user, db=db)
 
 

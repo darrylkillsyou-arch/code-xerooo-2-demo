@@ -10,6 +10,7 @@ from app.models.notifications import Notification
 from app.schemas.proposals import ProposalCreate, ProposalResponse
 from app.dependencies import get_current_user
 from app.services.encryption import encrypt_message
+from app.cache import cache, TTL_USER_DATA
 
 router = APIRouter(prefix="/proposals", tags=["proposals"])
 
@@ -173,6 +174,9 @@ def create_proposal(
     db.add(notif)
     db.commit()
 
+    cache.clear_prefix(f"user:{current_user.id}:proposals")
+    cache.clear_prefix(f"user:{creator_user.id}:proposals")
+
     return _serialize_proposal(proposal, db)
 
 
@@ -183,6 +187,11 @@ def get_my_proposals(
     db: Session = Depends(get_db),
 ):
     """Lists proposals associated with current user (as recruiter or creator)."""
+    cache_key = f"user:{current_user.id}:proposals:{role or 'all'}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     query = db.query(Proposal)
     if role == "creator" or (role is None and current_user.role == "creator"):
         query = query.filter(Proposal.creator_user_id == current_user.id)
@@ -195,6 +204,7 @@ def get_my_proposals(
         )
     proposals = query.order_by(Proposal.created_at.desc()).all()
     if not proposals:
+        cache.set(cache_key, [], TTL_USER_DATA)
         return []
 
     # Batch fetch related users and creator profiles to avoid N+1 queries
@@ -235,6 +245,7 @@ def get_my_proposals(
                 creator_avatar=creator_avatar,
             )
         )
+    cache.set(cache_key, results, TTL_USER_DATA)
     return results
 
 
@@ -317,6 +328,12 @@ def accept_proposal(
     db.commit()
     db.refresh(proposal)
 
+    # Invalidate proposal and workspace caches for both participants
+    cache.clear_prefix(f"user:{proposal.brand_user_id}:proposals")
+    cache.clear_prefix(f"user:{proposal.creator_user_id}:proposals")
+    cache.clear_prefix(f"user:{proposal.brand_user_id}:workspaces")
+    cache.clear_prefix(f"user:{proposal.creator_user_id}:workspaces")
+
     return _serialize_proposal(proposal, db)
 
 
@@ -350,5 +367,8 @@ def decline_proposal(
     db.add(notif)
     db.commit()
     db.refresh(proposal)
+
+    cache.clear_prefix(f"user:{proposal.brand_user_id}:proposals")
+    cache.clear_prefix(f"user:{proposal.creator_user_id}:proposals")
 
     return _serialize_proposal(proposal, db)

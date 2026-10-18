@@ -54,3 +54,4 @@ TTL_CREATORS_LIST = 300     # 5 minutes
 TTL_CREATOR_DETAIL = 300    # 5 minutes
 TTL_COMMUNITY_POSTS = 60    # 60 seconds
 TTL_LEADERBOARD = 300       # 5 minutes
+TTL_USER_DATA = 20          # 20 seconds for user-scoped private lists (proposals, workspaces)

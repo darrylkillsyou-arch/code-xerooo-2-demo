@@ -763,8 +763,12 @@ export const api = {
   workspaces: {
     list: async (): Promise<Workspace[]> => {
       try {
+        const cached = clientCache.get<Workspace[]>('user:workspaces:list');
+        if (cached) return cached;
         const raw = await request<any[]>('/workspaces');
-        return raw.map(normalizeWorkspace);
+        const result = raw.map(normalizeWorkspace);
+        clientCache.set('user:workspaces:list', result, TTL.WORKSPACES);
+        return result;
       } catch {
         // A new account must not see fake/default workspaces
         return [];
@@ -841,6 +845,8 @@ export const api = {
       const res = await request<any>(`/workspaces/${workspaceId}/complete`, {
         method: 'POST',
       });
+      clientCache.delete('user:workspaces:list');
+      clientCache.clearPrefix('leaderboard:');
       return normalizeWorkspace(res);
     },
     submitReview: async (workspaceId: string, rating: number, comment: string): Promise<any> => {
@@ -942,23 +948,34 @@ export const api = {
       budget_in_rupees: number;
       deadline: string;
     }): Promise<Proposal> => {
-      return await request<Proposal>('/proposals', {
+      const res = await request<Proposal>('/proposals', {
         method: 'POST',
         body: JSON.stringify(data),
       });
+      clientCache.delete('user:proposals:list');
+      return res;
     },
     list: async (): Promise<Proposal[]> => {
-      return await request<Proposal[]>('/proposals');
+      const cached = clientCache.get<Proposal[]>('user:proposals:list');
+      if (cached) return cached;
+      const res = await request<Proposal[]>('/proposals');
+      clientCache.set('user:proposals:list', res, TTL.PROPOSALS);
+      return res;
     },
     accept: async (proposalId: number): Promise<Proposal> => {
-      return await request<Proposal>(`/proposals/${proposalId}/accept`, {
+      const res = await request<Proposal>(`/proposals/${proposalId}/accept`, {
         method: 'POST',
       });
+      clientCache.delete('user:proposals:list');
+      clientCache.delete('user:workspaces:list');
+      return res;
     },
     decline: async (proposalId: number): Promise<Proposal> => {
-      return await request<Proposal>(`/proposals/${proposalId}/decline`, {
+      const res = await request<Proposal>(`/proposals/${proposalId}/decline`, {
         method: 'POST',
       });
+      clientCache.delete('user:proposals:list');
+      return res;
     },
   },
 
@@ -998,5 +1015,16 @@ export function prefetchPublicData(): void {
     api.creators.list().catch(() => null),
     api.community.getPosts().catch(() => null),
     api.leaderboard.get({ month: '2026-10' }).catch(() => null),
+  ]).catch(() => null);
+}
+
+/**
+ * Prefetch private authenticated data in the background after login or session boot.
+ * Warms workspaces and proposals caches so navigating to /workspaces or /requests is instant.
+ */
+export function prefetchAuthenticatedData(): void {
+  Promise.all([
+    api.workspaces.list().catch(() => null),
+    api.proposals.list().catch(() => null),
   ]).catch(() => null);
 }

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { User } from '../types';
-import { api, prefetchPublicData } from '../lib/api';
+import { api, prefetchPublicData, prefetchAuthenticatedData } from '../lib/api';
 
 interface AuthContextType {
   user: User | null;
@@ -35,8 +35,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           const me = await api.auth.getMe();
           setUser(me);
-          // Warm public caches in the background for already-authenticated sessions
+          // Warm public and private caches in the background for already-authenticated sessions
           prefetchPublicData();
+          prefetchAuthenticatedData();
         } catch {
           // Token invalid or backend rejected, clear session
           localStorage.removeItem('codexero_token');
@@ -55,8 +56,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.auth.login(email, pass);
       setUser(res.user);
-      // Prefetch read-heavy public data in background after login
+      // Prefetch public and private authenticated data in background after login
       prefetchPublicData();
+      prefetchAuthenticatedData();
     } finally {
       setIsLoading(false);
     }
