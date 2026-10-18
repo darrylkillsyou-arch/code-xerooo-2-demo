@@ -33,8 +33,9 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "https://ollama.com"
 
     
-    # CORS Origins (allow common local dev origins by default)
+    # CORS Origins (allow common local dev origins and production Vercel URLs)
     CORS_ORIGINS: Union[List[str], str] = [
+        "https://code-xerooo-2-demo-eight.vercel.app",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:5174",
