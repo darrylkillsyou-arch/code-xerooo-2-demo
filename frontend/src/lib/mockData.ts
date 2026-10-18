@@ -250,12 +250,14 @@ export const INITIAL_WORKSPACES: Workspace[] = [
     brief_ref: 'MC-2026-AET',
     title: 'Aethelgard 2026 Commercial',
     description: 'Haute-couture speculative hypercar launch film marrying organic brutalist architecture, liquid metallic textiles, and neural photorealistic kinetic rendering.',
+    status: 'in_progress',
     brand_id: 'brand-1',
     brand_name: 'Aethelgard Motors',
     creator: INITIAL_CREATORS[0],
     total_budget: 4400,
     stage_tag: 'Production (Milestone 2)',
     category_tag: 'Haute Generative Cine',
+    revisions: [],
     unread_count: 2,
     created_at: 'Oct 14, 2025',
     milestones: [
@@ -304,6 +306,7 @@ export const INITIAL_WORKSPACES: Workspace[] = [
         type: 'Video / In Progress',
         resolution: '4K ProRes Proxy',
         file_size: '420 MB',
+        version: 1,
         url: '#',
         status: 'Awaiting Client Review'
       },
@@ -313,6 +316,7 @@ export const INITIAL_WORKSPACES: Workspace[] = [
         type: 'Approved Assets',
         resolution: '3840x2160 PNG',
         file_size: '1.2 GB',
+        version: 1,
         url: '#',
         status: 'Approved'
       }
@@ -343,12 +347,14 @@ export const INITIAL_WORKSPACES: Workspace[] = [
     brief_ref: 'MC-2026-SAN',
     title: 'Spatial Holographic Audio Suite',
     description: 'Bespoke spatial sound architecture and neural ambient stems for flagship boutique spatial experience in Tokyo.',
+    status: 'in_review',
     brand_id: 'brand-2',
     brand_name: 'Lumina Tokyo',
     creator: INITIAL_CREATORS[3],
     total_budget: 2850,
     stage_tag: 'Review & Approvals',
     category_tag: 'Neural Audio & Synthetics',
+    revisions: [],
     unread_count: 0,
     created_at: 'Oct 19, 2025',
     milestones: [
@@ -379,6 +385,7 @@ export const INITIAL_WORKSPACES: Workspace[] = [
         type: 'Audio 24-bit 96kHz',
         resolution: '7.1.4 Dolby Atmos',
         file_size: '2.4 GB',
+        version: 1,
         url: '#',
         status: 'Ready for Escrow Release'
       }
@@ -400,12 +407,14 @@ export const INITIAL_WORKSPACES: Workspace[] = [
     brief_ref: 'MC-2025-MEE',
     title: "Autumn Editorial Lookbook '25",
     description: 'Generative high-fashion campaign with 16 hero images and short motion video clips.',
+    status: 'completed',
     brand_id: 'brand-3',
     brand_name: 'Vespera Studio',
     creator: INITIAL_CREATORS[1],
     total_budget: 6200,
     stage_tag: 'Delivered & Escrow Released',
     category_tag: 'Fashion Campaign',
+    revisions: [],
     unread_count: 0,
     created_at: 'Sep 28, 2025',
     milestones: [
@@ -437,6 +446,7 @@ export const INITIAL_WORKSPACES: Workspace[] = [
         type: 'TIF / 4K Video',
         resolution: 'Ultra-Res Master',
         file_size: '5.8 GB',
+        version: 1,
         url: '#',
         status: 'Archived & Verified'
       }
@@ -446,7 +456,11 @@ export const INITIAL_WORKSPACES: Workspace[] = [
 ];
 
 export const LEADERBOARD_STATS: LeaderboardStats = {
-  median_sla: '99.1%',
-  total_briefs: 1482,
-  escrow_integrity: '100%'
+  selected_month: '2026-10',
+  completed_projects: 36,
+  active_creators: 14,
+  verified_reviews: 24,
+  average_verified_rating: 4.9,
+  deliverables_completed: 48,
+  source: 'database'
 };
