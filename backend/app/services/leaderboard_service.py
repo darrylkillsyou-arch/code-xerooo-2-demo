@@ -116,7 +116,7 @@ def compute_profile_strength(creator: CreatorProfile) -> float:
 def _compute_month_creator_scores(
     db: Session,
     month_str: str,
-) -> List[MonthlyRankedCreator]:
+) -> tuple[List[MonthlyRankedCreator], List, List]:
     """Calculates qualifying creators and their deterministic performance scores for a month."""
     start_dt, end_dt = _get_month_bounds(month_str)
 
@@ -153,10 +153,11 @@ def _compute_month_creator_scores(
     for r in reviews:
         rev_map[r.creator_user_id].append(r)
 
-    # 3. Released milestones in this month
+    # 3. Released milestones in this month (joinedload workspace to avoid N+1)
     milestones = (
         db.query(WorkspaceMilestone)
         .join(Workspace, Workspace.id == WorkspaceMilestone.workspace_id)
+        .options(joinedload(WorkspaceMilestone.workspace))
         .filter(
             WorkspaceMilestone.status.in_(["approved", "released"]),
             WorkspaceMilestone.completed_at >= start_dt,
@@ -169,10 +170,12 @@ def _compute_month_creator_scores(
         if _is_valid_marketplace_workspace(m.workspace):
             ms_map[m.workspace.creator_user_id].append(m)
 
-    # 4. Revision requests in this month
+
+    # 4. Revision requests in this month (joinedload workspace to avoid N+1)
     revisions = (
         db.query(RevisionRequest)
         .join(Workspace, Workspace.id == RevisionRequest.workspace_id)
+        .options(joinedload(RevisionRequest.workspace))
         .filter(
             RevisionRequest.created_at >= start_dt,
             RevisionRequest.created_at < end_dt,
@@ -184,10 +187,11 @@ def _compute_month_creator_scores(
         if _is_valid_marketplace_workspace(rr.workspace):
             rev_req_map[rr.workspace.creator_user_id].append(rr)
 
-    # 5. Shared deliverables uploaded in this month
+    # 5. Shared deliverables uploaded in this month (joinedload workspace to avoid N+1)
     deliverables = (
         db.query(SharedFile)
         .join(Workspace, Workspace.id == SharedFile.workspace_id)
+        .options(joinedload(SharedFile.workspace))
         .filter(
             SharedFile.created_at >= start_dt,
             SharedFile.created_at < end_dt,
@@ -331,7 +335,7 @@ def _compute_month_creator_scores(
     for idx, item in enumerate(ranked_items):
         item.rank = idx + 1
 
-    return ranked_items
+    return ranked_items, completed_ws, reviews
 
 
 def get_monthly_leaderboard(
@@ -347,8 +351,8 @@ def get_monthly_leaderboard(
 
     available_months = ["2026-08", "2026-09", "2026-10"]
 
-    # 1. Compute current month's ranked creators
-    current_ranked = _compute_month_creator_scores(db, month)
+    # 1. Compute current month's ranked creators (also returns raw lists for reuse)
+    current_ranked, curr_completed_ws, curr_reviews = _compute_month_creator_scores(db, month)
 
     # 2. Determine prior month for rank movement
     prior_ranks_map: Dict[int, int] = {}
@@ -359,7 +363,7 @@ def get_monthly_leaderboard(
         prior_month = "2026-09"
 
     if prior_month:
-        prior_ranked = _compute_month_creator_scores(db, prior_month)
+        prior_ranked, _, _ = _compute_month_creator_scores(db, prior_month)
         for pr in prior_ranked:
             prior_ranks_map[pr.creator_id] = pr.rank
 
@@ -535,28 +539,13 @@ def get_monthly_leaderboard(
             )
         )
 
-    # 6. Monthly Summary Stats derived honestly from DB
-    start_dt, end_dt = _get_month_bounds(month)
-    valid_workspaces = [
-        w for w in db.query(Workspace).filter(
-            Workspace.status == "completed",
-            Workspace.completed_at >= start_dt,
-            Workspace.completed_at < end_dt,
-        ).all()
-        if _is_valid_marketplace_workspace(w)
-    ]
-    valid_ws_ids = {w.id for w in valid_workspaces}
+    # 6. Monthly Summary Stats — reuse data already fetched above (no extra DB queries)
+    valid_ws_ids = {w.id for w in curr_completed_ws}
+    completed_cnt = len(curr_completed_ws)
+    active_creators_cnt = len({w.creator_user_id for w in curr_completed_ws})
 
-    completed_cnt = len(valid_workspaces)
-    active_creators_cnt = len({w.creator_user_id for w in valid_workspaces})
-
-    month_reviews = [
-        r for r in db.query(Review).filter(
-            Review.created_at >= start_dt,
-            Review.created_at < end_dt,
-        ).all()
-        if r.workspace_id in valid_ws_ids
-    ]
+    # Filter curr_reviews to only those belonging to valid marketplace workspaces
+    month_reviews = [r for r in curr_reviews if r.workspace_id in valid_ws_ids]
     verified_rev_cnt = len(month_reviews)
     avg_rating = round(sum(r.rating for r in month_reviews) / verified_rev_cnt, 2) if verified_rev_cnt > 0 else 5.0
 
