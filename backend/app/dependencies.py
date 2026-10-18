@@ -39,6 +39,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
+from app.cache import cache
+
 def get_current_user(
     db: Session = Depends(get_db),
     token: Optional[str] = Depends(oauth2_scheme)
@@ -61,11 +63,19 @@ def get_current_user(
     except (JWTError, ValueError):
         raise credentials_exception
 
+    cache_key = f"auth:user:{user_id}"
+    cached_user = cache.get(cache_key)
+    if cached_user is not None:
+        # Re-attach or merge into active session to support relations
+        return db.merge(cached_user, load=False)
+
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise credentials_exception
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Inactive user")
+
+    cache.set(cache_key, user, 30)
     return user
 
 
