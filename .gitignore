@@ -66,3 +66,6 @@ build/
 htmlcov/
 .coverage
 coverage.xml
+
+.vercel
+.env*
